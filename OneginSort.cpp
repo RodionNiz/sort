@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,9 +7,8 @@
 #include <ctype.h>
 #include <string.h>
 
-
-#define nOfStr 1000
-#define maxCharsInStr 100
+#define len 1000
+#define maxCharsInStr 1000
 
 
 #define RED     "\033[31m"
@@ -15,12 +16,19 @@
 #define RESET   "\033[0m"
 
 
-enum PrintReason 
+enum PrintDataReason 
 {
     GoLeft = 0,
     GoRight = 1,
     RewriteLeft = 2,
     RewriteRight = 3
+};
+
+
+enum PrintStrReason 
+{
+    DebugingPrint = -1,
+    PrintAns = 1
 };
 
 
@@ -30,15 +38,18 @@ typedef int (*CompareFuncType) (const void* cmpStrIndex, const void* pivotIndex)
 int     CompareStr      (const void* cmpStrIndex, const void* pivotIndex);
 int     CompareStandard (const void* cmpStrIndex, const void* pivotIndex);
 void    QSortStr        (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc);
-void    PrintData       (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintReason reason);
+void    PrintData       (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintDataReason reason);
+char*   strdupreverse   (char *src);
+void    PrintStrings    (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile);
 
 
 int main ()
 {
-    FILE *file = fopen("Onegin.txt", "r");
-    FILE *sortedFile = fopen("SortedOnegin.txt", "w");
+    FILE* file = fopen("Onegin.txt", "r");
+    FILE* sortedFile = fopen("SortedOnegin.txt", "w");
 
     char** index = (char**) calloc (1, sizeof (index [0]));
+    char** indexCopy = (char**) calloc (1, sizeof (index [0]));
     char buffer [maxCharsInStr] = {};
 
     size_t strCount = 0;
@@ -46,18 +57,25 @@ int main ()
     while (fgets (buffer, maxCharsInStr, file))
     {
         strCount++;
+
         index = (char**) realloc (index, strCount * sizeof (index [0]));
+        indexCopy = (char**) realloc (indexCopy, strCount * sizeof (indexCopy [0]));
+
         index [strCount - 1] = strdup (buffer);
+        indexCopy [strCount - 1] = strdup (buffer);
+        //indexCopy [strCount - 1] = strdupreverse (buffer);
     }
 
-    //QSortStr (index, 0, strCount - 1, &CompareStr);
+    QSortStr (index, 0, strCount - 1, &CompareStr);
 
-    qsort (index, strCount, sizeof (index [0]), &CompareStr);
+    PrintStrings (index, strCount, PrintAns, sortedFile);
+
+    qsort (indexCopy, strCount, sizeof (index [0]), &CompareStandard);
     
-    for (size_t i = 0; i < strCount; i++)
-    {
-        fprintf (sortedFile, "%s", (const char*) index [i]);
-    }
+    PrintStrings (indexCopy, strCount, PrintAns, sortedFile);
+
+    free (index);
+    free (indexCopy);
 }
 
 
@@ -72,41 +90,35 @@ void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBo
 
     while (lIndex < rIndex)
     {
-        //while (sortingData [rIndex] > pivot && lIndex < rIndex)
         while (cmpFunc (&(sortingData [rIndex]), &pivotIndex) > 0 && lIndex < rIndex)
         {
             rIndex--;
-            //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, GoLeft);
-            //printf("right = %zu, left = %zu\n", rIndex, lIndex);
         }
 
         if (lIndex < rIndex)
         {
             sortingData [lIndex] = sortingData [rIndex];
-            //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, RewriteRight);
         }
 
-        //while (sortingData [lIndex] < pivot && lIndex < rIndex)
         while (cmpFunc (&(sortingData [lIndex]), &pivotIndex) < 0 && lIndex < rIndex)
         {
             lIndex++;
-            //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, GoRight);
         }
 
         if (lIndex < rIndex)
         {
             sortingData [rIndex] = sortingData [lIndex];
-            //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, RewriteLeft);
             rIndex--;
         }
 
 
         assert (lIndex <= rIndex);
+        assert (lIndex >= leftBorder);
+        assert (rIndex <= rightBorder);
     }
-    //printf("left = %zu, right = %zu\n", lIndex, rIndex);
-    //printf ("pivot = %d\n", pivot);
 
     assert (lIndex == rIndex);
+
     sortingData [lIndex] = (char*) pivotIndex;
     
     if (lIndex != leftBorder)
@@ -123,22 +135,30 @@ void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBo
 
 int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
 {
+    assert (cmpStrIndex != nullptr);
+    assert (pivotIndex  != nullptr);
+
     const char* cmpStrCasted = *((const char**) cmpStrIndex);
     const char* pivotCasted  = *((const char**) pivotIndex);
 
     size_t cmpCount = 0;
     size_t pivotCount = 0;
 
-    while (cmpStrCasted [cmpCount] != 0 && pivotCasted [pivotCount] != 0)
+    while (cmpStrCasted [cmpCount] != '\n' && pivotCasted [pivotCount] != '\n')
     {
-        while (isalpha (cmpStrCasted [cmpCount]) == 0 && cmpStrCasted [cmpCount] != 0)
+        while (!isalpha (cmpStrCasted [cmpCount]) && cmpStrCasted [cmpCount] != '\n')
         {
             cmpCount++;
         }
 
-        while (isalpha (pivotCasted [pivotCount]) == 0 && pivotCasted [pivotCount] != 0)
+        while (!isalpha (pivotCasted [pivotCount]) && pivotCasted [pivotCount] != '\0')
         {
             pivotCount++;
+        }
+
+        if (cmpStrCasted [cmpCount] == '\n' || pivotCasted [pivotCount] == '\0')
+        {
+            break;
         }
         
         if (cmpStrCasted [cmpCount] != pivotCasted [pivotCount])
@@ -146,11 +166,8 @@ int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
             return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
         }
 
-        if (cmpStrCasted [cmpCount] != 0 && pivotCasted [pivotCount] != 0)
-        {
-            cmpCount++;
-            pivotCount++;
-        }
+        cmpCount++;
+        pivotCount++;
     }
 
     return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
@@ -167,19 +184,6 @@ int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
 
     int cmpCount   = strlen (cmpStrCasted);
     int pivotCount = strlen (pivotCasted);
-
-    if (!cmpCount)
-    {
-        cmpCount--;
-    }
-    
-    if (!pivotCount)
-    {
-        pivotCount--;
-    }
-
-    assert (cmpCount >= 0);
-    assert (pivotCount >= 0);
 
     while (cmpCount >= 0 && pivotCount >= 0)
     {
@@ -203,22 +207,44 @@ int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
             return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
         }
 
-        if (cmpCount >= 0 && pivotCount >= 0)
-        {
-            cmpCount--;
-            pivotCount--;
-        }
+        cmpCount--;
+        pivotCount--;
     }
 
     return cmpCount - pivotCount;
 }
 
+/*
+char* strdupreverse (char *src)
+{
+    assert (src != nullptr);
 
-void PrintData (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintReason reason)
+    size_t inputStrSize = strlen(src) + 1;
+
+    char* srcDup = (char*) calloc (inputStrSize, sizeof (char));
+
+    size_t count = 0;
+    inputStrSize -= 2;
+
+    while (*(src + inputStrSize) != 0)
+    {
+        *(srcDup + count) = *(src + inputStrSize);
+        inputStrSize--;
+        count++;
+    }
+
+    *(srcDup + count) = 0;
+
+    assert (srcDup != nullptr);
+
+    return srcDup;
+}*/
+
+void PrintData (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintDataReason reason)
 {
     printf ("Now data is: \n" GREEN);
 
-    for (size_t i = 0; i < nOfStr; i++)
+    for (size_t i = 0; i < len; i++)
     {
         if (i == lIndex + 1)
         {
@@ -258,4 +284,27 @@ void PrintData (char** data, size_t lIndex, size_t rIndex, char* pivotValue, Pri
     }
 
     getchar ();
+}
+
+void PrintStrings (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile)
+{
+    switch (reason)
+    {
+        case DebugingPrint:
+            for (size_t i = 0; i < nOfStr; i++)
+            {
+                printf ("str indexed %zu has len %zu and ptr %p is \'%s\'", i, strlen (index [i]), index [i],  index [i]);
+            }
+            break;
+        
+        case PrintAns:
+            for (size_t i = 0; i < nOfStr; i++)
+            {
+                fprintf (sortedFile, "%s", index [i]);
+            }
+            break;
+        
+        default:
+            break;
+    }
 }
