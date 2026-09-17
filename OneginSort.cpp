@@ -1,15 +1,19 @@
+#include <cstdlib>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
 
+
 #define nOfStr 1000
 #define maxCharsInStr 100
+
 
 #define RED     "\033[31m"
 #define GREEN   "\033[32m"
 #define RESET   "\033[0m"
+
 
 enum PrintReason 
 {
@@ -19,11 +23,15 @@ enum PrintReason
     RewriteRight = 3
 };
 
-typedef int (*CompareFuncType) (const char* cmpStrIndex, const char* pivotIndex);
 
-int     CompareStr  (const char* cmpStrIndex, const char* pivotIndex);
-void    QSortStr    (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc);
-void    PrintData   (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintReason reason);
+typedef int (*CompareFuncType) (const void* cmpStrIndex, const void* pivotIndex);
+
+
+int     CompareStr      (const void* cmpStrIndex, const void* pivotIndex);
+int     CompareStandard (const void* cmpStrIndex, const void* pivotIndex);
+void    QSortStr        (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc);
+void    PrintData       (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintReason reason);
+
 
 int main ()
 {
@@ -42,16 +50,17 @@ int main ()
         index [strCount - 1] = strdup (buffer);
     }
 
-    QSortStr (index, 0, strCount - 1, &CompareStr);
+    //QSortStr (index, 0, strCount - 1, &CompareStr);
+
+    qsort (index, strCount, sizeof (index [0]), &CompareStr);
     
     for (size_t i = 0; i < strCount; i++)
     {
-        fprintf (sortedFile, (const char*) index [i]);
+        fprintf (sortedFile, "%s", (const char*) index [i]);
     }
 }
 
 
-//TODO сделать pivot не указателем.
 void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc)
 {
     assert (sortingData != nullptr);
@@ -64,7 +73,7 @@ void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBo
     while (lIndex < rIndex)
     {
         //while (sortingData [rIndex] > pivot && lIndex < rIndex)
-        while (cmpFunc (sortingData [rIndex], pivotIndex) > 0 && lIndex < rIndex)
+        while (cmpFunc (&(sortingData [rIndex]), &pivotIndex) > 0 && lIndex < rIndex)
         {
             rIndex--;
             //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, GoLeft);
@@ -78,7 +87,7 @@ void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBo
         }
 
         //while (sortingData [lIndex] < pivot && lIndex < rIndex)
-        while (cmpFunc (sortingData [lIndex], pivotIndex) < 0 && lIndex < rIndex)
+        while (cmpFunc (&(sortingData [lIndex]), &pivotIndex) < 0 && lIndex < rIndex)
         {
             lIndex++;
             //PrintData (sortingData, lIndex, rIndex, (char*) pivotIndex, GoRight);
@@ -111,37 +120,97 @@ void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBo
     }
 }
 
-int CompareStr (const char* cmpStrIndex, const char* pivotIndex)
+
+int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
 {
+    const char* cmpStrCasted = *((const char**) cmpStrIndex);
+    const char* pivotCasted  = *((const char**) pivotIndex);
+
     size_t cmpCount = 0;
     size_t pivotCount = 0;
 
-    while (cmpStrIndex [cmpCount] != 0 && pivotIndex [pivotCount] != 0)
+    while (cmpStrCasted [cmpCount] != 0 && pivotCasted [pivotCount] != 0)
     {
-        while (isalpha (cmpStrIndex [cmpCount]) == 0 && cmpStrIndex [cmpCount] != 0)
+        while (isalpha (cmpStrCasted [cmpCount]) == 0 && cmpStrCasted [cmpCount] != 0)
         {
             cmpCount++;
         }
 
-        while (isalpha (pivotIndex [pivotCount]) == 0 && pivotIndex [pivotCount] != 0)
+        while (isalpha (pivotCasted [pivotCount]) == 0 && pivotCasted [pivotCount] != 0)
         {
             pivotCount++;
         }
         
-        if (cmpStrIndex [cmpCount] != pivotIndex [pivotCount])
+        if (cmpStrCasted [cmpCount] != pivotCasted [pivotCount])
         {
-            return cmpStrIndex [cmpCount] - pivotIndex [pivotCount];
+            return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
         }
 
-        cmpCount++;
-        pivotCount++;
-    }
-    if (cmpStrIndex [cmpCount] != pivotIndex [pivotCount])
-    {
-        return cmpStrIndex [cmpCount] - pivotIndex [pivotCount];
+        if (cmpStrCasted [cmpCount] != 0 && pivotCasted [pivotCount] != 0)
+        {
+            cmpCount++;
+            pivotCount++;
+        }
     }
 
-    return 0;
+    return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
+}
+
+
+int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
+{
+    assert (cmpStrIndex != nullptr);
+    assert (pivotIndex  != nullptr);
+
+    const char* cmpStrCasted = *((const char**) cmpStrIndex);
+    const char* pivotCasted  = *((const char**) pivotIndex);
+
+    int cmpCount   = strlen (cmpStrCasted);
+    int pivotCount = strlen (pivotCasted);
+
+    if (!cmpCount)
+    {
+        cmpCount--;
+    }
+    
+    if (!pivotCount)
+    {
+        pivotCount--;
+    }
+
+    assert (cmpCount >= 0);
+    assert (pivotCount >= 0);
+
+    while (cmpCount >= 0 && pivotCount >= 0)
+    {
+        while (cmpCount >= 0 && isalpha (cmpStrCasted [cmpCount]) == 0)
+        {
+            cmpCount--;
+        }
+
+        while (pivotCount >= 0 && isalpha (pivotCasted [pivotCount]) == 0)
+        {
+            pivotCount--;
+        }
+
+        if (cmpCount == -1 || pivotCount == -1)
+        {
+            break;
+        }
+        
+        if (cmpStrCasted [cmpCount] != pivotCasted [pivotCount])
+        {
+            return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
+        }
+
+        if (cmpCount >= 0 && pivotCount >= 0)
+        {
+            cmpCount--;
+            pivotCount--;
+        }
+    }
+
+    return cmpCount - pivotCount;
 }
 
 
@@ -164,24 +233,29 @@ void PrintData (char** data, size_t lIndex, size_t rIndex, char* pivotValue, Pri
         printf ("%s ", data [i]);
     }
 
-    printf(RESET "\nleft = %zu, right = %zu\n", lIndex, rIndex);
+    printf (RESET "\nleft = %zu, right = %zu\n", lIndex, rIndex);
 
     switch (reason)
     {
         case GoLeft:
             printf ("Right pointer moved left\n");
             break;
+
         case GoRight:
             printf ("Left pointer moved right\n");
             break;
+
         case RewriteLeft:
-            printf("Value from left side was rewrite to the right side\n");
+            printf ("Value from left side was rewrite to the right side\n");
             break;
+
         case RewriteRight:
-            printf("Value from right side was rewrite to the left side\n");
+            printf ("Value from right side was rewrite to the left side\n");
             break;
+
         default:
             break;
     }
+
     getchar ();
 }
