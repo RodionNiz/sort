@@ -42,17 +42,15 @@ void    PrintData       (char** data, size_t lIndex, size_t rIndex, char* pivotV
 char*   strdupreverse   (char *src);
 void    PrintStrings    (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile);
 char*   ReadFile        (size_t* fileSize, FILE* file);
-void    FillIndex       (char*** index, char*** indexCopy, size_t indexElemSize, size_t* strCount, char* text, size_t textSize);
+void    FillIndex       (char*** index, size_t elemSize, size_t* strCount, char* text, size_t textSize);
 
 
-//TODO сделать все строки в один буффер
 int main ()
 {
     FILE* file = fopen("Onegin.txt", "r");
     FILE* sortedFile = fopen("SortedOnegin.txt", "w");
-
-    char** index = (char**) calloc (1, sizeof (index [0]));
-    char** indexCopy = (char**) calloc (1, sizeof (indexCopy [0]));
+    
+    char** originalTextIndexes = (char**) calloc (1, sizeof (originalTextIndexes [0]));
     
     size_t strCount = 0;
 
@@ -60,22 +58,30 @@ int main ()
 
     char* text = ReadFile (&fileSize, file);
 
-    FillIndex (&index, &indexCopy, sizeof (index [0]), &strCount, text, fileSize);
+    FillIndex (&originalTextIndexes, sizeof (originalTextIndexes [0]), &strCount, text, fileSize);
+
+    char** index = (char**) calloc (strCount, sizeof (originalTextIndexes [0]));
+    char** indexCopy = (char**) calloc (strCount, sizeof (originalTextIndexes [0]));
+
+    for (size_t i = 0; i < strCount; i++)
+    {
+        index [i] = originalTextIndexes [i];
+        indexCopy [i] = originalTextIndexes [i];
+    }
 
     QSortStr (index, 0, strCount - 1, &CompareStr);
 
     qsort (indexCopy, strCount, sizeof (index [0]), &CompareStandard);
 
-    printf ("qsort finished\n");
-
     PrintStrings (index, strCount, PrintAns, sortedFile);
     
     PrintStrings (indexCopy, strCount, PrintAns, sortedFile);
 
-    
+    PrintStrings (originalTextIndexes,strCount, PrintAns, sortedFile);
 
     free (index);
     free (indexCopy);
+    free (originalTextIndexes);
     free (text);
 
     fclose (file);
@@ -102,10 +108,9 @@ char* ReadFile (size_t* fileSize, FILE* file)
 }
 
 
-void FillIndex (char*** index, char*** indexCopy, size_t indexElemSize, size_t* strCount, char* text, size_t textSize)
+void FillIndex (char*** originalTextIndexes, size_t elemSize, size_t* strCount, char* text, size_t textSize)
 {
-    assert (index != nullptr);
-    assert (indexCopy != nullptr);
+    assert (originalTextIndexes != nullptr);
     assert (strCount != nullptr);
     assert (text != nullptr);
 
@@ -129,11 +134,9 @@ void FillIndex (char*** index, char*** indexCopy, size_t indexElemSize, size_t* 
         {
             (*strCount)++;
 
-            *index = (char**) realloc (*index, *strCount * indexElemSize);
-            *indexCopy = (char**) realloc (*indexCopy, *strCount * indexElemSize);
+            *originalTextIndexes = (char**) realloc (*originalTextIndexes, *strCount * elemSize);
 
-            (*index) [*strCount - 1] = (text + count);
-            (*indexCopy) [*strCount - 1] = (text + count);
+            (*originalTextIndexes) [*strCount - 1] = (text + count);
             
             while (text [count] != '\n')
             {
