@@ -66,18 +66,17 @@ int main ()
 
     qsort (indexCopy, strCount, sizeof (index [0]), &CompareStandard);
 
+    printf ("qsort finished\n");
+
     PrintStrings (index, strCount, PrintAns, sortedFile);
     
     PrintStrings (indexCopy, strCount, PrintAns, sortedFile);
 
-    for (size_t i = 0; i < strCount; i++)
-    {
-        free (index [i]);
-        free (indexCopy [i]);
-    }
+    
 
     free (index);
     free (indexCopy);
+    free (text);
 
     fclose (file);
     fclose (sortedFile);
@@ -99,57 +98,52 @@ char* ReadFile (size_t* fileSize, FILE* file)
 
     *fileSize = fread (text, sizeof (text [0]), approxFileSize, file);
 
-    printf ("\'%s\'", text);
-
     return text;
 }
 
 
-void FillIndex (char*** index, char*** indexCopy, size_t indexElemSize, size_t* strCount, FILE* readingFile)
+void FillIndex (char*** index, char*** indexCopy, size_t indexElemSize, size_t* strCount, char* text, size_t textSize)
 {
     assert (index != nullptr);
     assert (indexCopy != nullptr);
     assert (strCount != nullptr);
-    assert (readingFile != nullptr);
+    assert (text != nullptr);
 
-    char buffer [maxCharsInStr] = {};
+    size_t count = 0;
 
-    while (fgets (buffer, maxCharsInStr, readingFile))
+    while (count < textSize)
     {
-        size_t countIn  = 0;
-        size_t countOut = 0;
         unsigned int wasLetter = 0;
 
-        while (!wasLetter && buffer [countIn] != '\0')
+        while (!wasLetter && text [count] != '\n')
         {
-            if (isalpha (buffer [countIn]))
+            if (isalpha (text [count]))
             {
                 wasLetter = 1;
                 break;
             }
-            countIn++;
-        }
-
-        while (buffer [countIn] != '\0' && countIn != 0)
-        {
-            buffer [countOut] = buffer [countIn];
-            buffer [countOut + 1] = '\0';
-            countIn++;
-            countOut++;
+            count++;
         }
 
         if (wasLetter)
         {
-
             (*strCount)++;
 
             *index = (char**) realloc (*index, *strCount * indexElemSize);
             *indexCopy = (char**) realloc (*indexCopy, *strCount * indexElemSize);
 
-            (*index) [*strCount - 1] = strdup (buffer);
-            (*indexCopy) [*strCount - 1] = strdup (buffer);
-            //indexCopy [strCount - 1] = strdupreverse (buffer);
+            (*index) [*strCount - 1] = (text + count);
+            (*indexCopy) [*strCount - 1] = (text + count);
+            
+            while (text [count] != '\n')
+            {
+                count++;
+            }
+
+            text [count] = '\0';
         }
+
+        count++;
     }
 }
 
@@ -373,7 +367,7 @@ void PrintStrings (char** index, size_t nOfStr, PrintStrReason reason, FILE* sor
         case DebugingPrint:
             for (size_t i = 0; i < nOfStr; i++)
             {
-                printf ("str indexed %zu has len %zu and ptr %p is \'%s\'", i, strlen (index [i]), index [i],  index [i]);
+                printf ("str indexed %zu has len %zu and ptr %p is \'%s\'\n", i, strlen (index [i]), index [i],  index [i]);
             }
             break;
         
@@ -381,10 +375,10 @@ void PrintStrings (char** index, size_t nOfStr, PrintStrReason reason, FILE* sor
 
             for (size_t i = 0; i < nOfStr; i++)
             {
-                fprintf (sortedFile, "%s", index [i]);
+                fprintf (sortedFile, "%s\n", index [i]);
             }
             
-            fprintf (sortedFile, "************************************\n\n\n");
+            fprintf (sortedFile, "************************************\n\n");
             break;
         
         default:
