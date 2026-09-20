@@ -1,29 +1,9 @@
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
-
-#define len 1000
-#define maxCharsInStr 1000
-
-
-#define RED     "\033[31m"
-#define GREEN   "\033[32m"
-#define RESET   "\033[0m"
-
-
-enum PrintDataReason 
-{
-    GoLeft = 0,
-    GoRight = 1,
-    RewriteLeft = 2,
-    RewriteRight = 3
-};
-
+#include <sys/stat.h>
 
 enum PrintStrReason 
 {
@@ -35,57 +15,81 @@ enum PrintStrReason
 typedef int (*CompareFuncType) (const void* cmpStrIndex, const void* pivotIndex);
 
 
+struct TextStates 
+{
+    size_t nOfStr;
+    size_t nOfGoodStr;
+    size_t textLen;
+    char*  text; 
+    char** textPtrs;
+};
+
+
+char*   ReadFile        (size_t* fileSize, FILE* file);
+size_t  FillIndex       (char*** originalTextIndexes, char* text, size_t textSize);
+size_t  strlenToN       (const char* str);
+size_t  CountStrings    (char* text, size_t textSize);
+TextStates ParseText    (FILE* readingFile);
+
+void    QSort           (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc);
+size_t  Partition       (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc);
+void    ByteSwap        (void* first, void* second, size_t nOfBytes);
+
 int     CompareStr      (const void* cmpStrIndex, const void* pivotIndex);
 int     CompareStandard (const void* cmpStrIndex, const void* pivotIndex);
-void    QSortStr        (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc);
-void    PrintData       (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintDataReason reason);
-char*   strdupreverse   (char *src);
+
 void    PrintStrings    (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile);
-char*   ReadFile        (size_t* fileSize, FILE* file);
-void    FillIndex       (char*** index, size_t elemSize, size_t* strCount, char* text, size_t textSize);
 
 
 int main ()
 {
     FILE* file = fopen("Onegin.txt", "r");
     FILE* sortedFile = fopen("SortedOnegin.txt", "w");
-    
-    char** originalTextIndexes = (char**) calloc (1, sizeof (originalTextIndexes [0]));
-    
-    size_t strCount = 0;
 
-    size_t fileSize  = 0;
+    TextStates states = ParseText (file);
 
-    char* text = ReadFile (&fileSize, file);
+    char** index = (char**) calloc (states.nOfGoodStr, sizeof (states.textPtrs [0]));
 
-    FillIndex (&originalTextIndexes, sizeof (originalTextIndexes [0]), &strCount, text, fileSize);
-
-    char** index = (char**) calloc (strCount, sizeof (originalTextIndexes [0]));
-    char** indexCopy = (char**) calloc (strCount, sizeof (originalTextIndexes [0]));
-
-    for (size_t i = 0; i < strCount; i++)
+    for (size_t i = 0; i < states.nOfGoodStr; i++)
     {
-        index [i] = originalTextIndexes [i];
-        indexCopy [i] = originalTextIndexes [i];
+        index [i] = states.textPtrs [i];
     }
-
-    QSortStr (index, 0, strCount - 1, &CompareStr);
-
-    qsort (indexCopy, strCount, sizeof (index [0]), &CompareStandard);
-
-    PrintStrings (index, strCount, PrintAns, sortedFile);
     
-    PrintStrings (indexCopy, strCount, PrintAns, sortedFile);
+    QSort (index, states.nOfGoodStr, sizeof (index [0]) , &CompareStr);
 
-    PrintStrings (originalTextIndexes,strCount, PrintAns, sortedFile);
+    PrintStrings (index, states.nOfGoodStr, PrintAns, sortedFile);
+
+    qsort (index, states.nOfGoodStr, sizeof (index [0]), &CompareStandard);
+    
+    PrintStrings (index, states.nOfGoodStr, PrintAns, sortedFile);
+
+    PrintStrings (states.textPtrs, states.nOfGoodStr, PrintAns, sortedFile);
+    
 
     free (index);
-    free (indexCopy);
-    free (originalTextIndexes);
-    free (text);
+    free (states.textPtrs);
+    free (states.text);
 
     fclose (file);
     fclose (sortedFile);
+}
+
+
+TextStates ParseText (FILE* readingFile)
+{
+    TextStates states = {};
+
+    states.text = ReadFile(&(states.textLen), readingFile);
+    
+    states.nOfStr = CountStrings(states.text, states.textLen);
+
+    states.textPtrs = (char**) calloc (states.nOfStr, sizeof (states.textPtrs [0]));
+
+    states.nOfGoodStr = FillIndex (&states.textPtrs, states.text, states.textLen);
+
+    states.textPtrs = (char**) realloc (states.textPtrs, states.nOfGoodStr * sizeof (states.textPtrs [0]));
+
+    return states;
 }
 
 
@@ -94,33 +98,65 @@ char* ReadFile (size_t* fileSize, FILE* file)
     assert (file != nullptr);
     assert (fileSize != nullptr);
     
-    fseek(file, 0, SEEK_END);
+    struct stat fileStat = {};
 
-    size_t approxFileSize = ftell(file);
-    
-    fseek(file, 0, SEEK_SET);
+    stat ("Onegin.txt", &fileStat);
+
+    size_t approxFileSize = fileStat.st_size;
 
     char* text = (char*) calloc (approxFileSize + 1, sizeof (text [0]));
 
     *fileSize = fread (text, sizeof (text [0]), approxFileSize, file);
 
+    text = (char*) realloc (text, *fileSize * sizeof (text [0]) + 1);
+
+    text [*fileSize] = 0;
+
+    assert (text != nullptr);
+
     return text;
 }
 
 
-void FillIndex (char*** originalTextIndexes, size_t elemSize, size_t* strCount, char* text, size_t textSize)
+size_t CountStrings (char* text, size_t textSize)
 {
-    assert (originalTextIndexes != nullptr);
-    assert (strCount != nullptr);
     assert (text != nullptr);
 
     size_t count = 0;
+    size_t strCount = 0;
+
+    while (count < textSize)
+    {
+        if (text [count] == '\n')
+        {
+            strCount++;
+        }
+
+        count++;
+    }
+
+    if (text [textSize -1] != '\n')
+    {
+        strCount++;
+    }
+
+    return strCount;
+}
+
+
+size_t FillIndex (char*** originalTextIndexes, char* text, size_t textSize)
+{
+    assert (originalTextIndexes != nullptr);
+    assert (text != nullptr);
+
+    size_t count = 0;
+    size_t strCount = 0;
 
     while (count < textSize)
     {
         unsigned int wasLetter = 0;
 
-        while (!wasLetter && text [count] != '\n')
+        while (!wasLetter && text [count] != '\n' && count < textSize)
         {
             if (isalpha (text [count]))
             {
@@ -132,74 +168,99 @@ void FillIndex (char*** originalTextIndexes, size_t elemSize, size_t* strCount, 
 
         if (wasLetter)
         {
-            (*strCount)++;
+            size_t countDup = count;
 
-            *originalTextIndexes = (char**) realloc (*originalTextIndexes, *strCount * elemSize);
-
-            (*originalTextIndexes) [*strCount - 1] = (text + count);
-            
             while (text [count] != '\n')
             {
                 count++;
             }
 
             text [count] = '\0';
+
+            (*originalTextIndexes) [strCount] = (text + countDup);
+            strCount++;
         }
 
         count++;
     }
+
+    return strCount;
 }
 
-void QSortStr (char** sortingData, const size_t leftBorder, const size_t rightBorder, CompareFuncType cmpFunc)
+
+void QSort (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc)
 {
-    assert (sortingData != nullptr);
+    assert (srtData);
+    assert (cmpFunc);
+    assert (nOfElements != 0);
+    assert (sizeofElement != 0);
 
-    size_t lIndex = leftBorder;
-    size_t rIndex = rightBorder;
+    size_t partitionResult = Partition(srtData, nOfElements, sizeofElement, cmpFunc);
+    
 
-    const char* pivotIndex = sortingData [leftBorder];
+    if (partitionResult > 0)
+    {
+        QSort (srtData, partitionResult, sizeofElement, cmpFunc);
+    }
+
+    if (partitionResult + 1 < nOfElements - 1)
+    {
+        QSort ((void*) ((char*) srtData + (partitionResult) * sizeofElement ), nOfElements - partitionResult, sizeofElement, cmpFunc);
+    }
+}
+
+
+size_t Partition (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc)
+{
+    size_t pivotIndex = (nOfElements - 1) / 2;
+
+    size_t lIndex = 0;
+    size_t rIndex = nOfElements - 1;
 
     while (lIndex < rIndex)
     {
-        while (cmpFunc (&(sortingData [rIndex]), &pivotIndex) > 0 && lIndex < rIndex)
-        {
-            rIndex--;
-        }
-
-        if (lIndex < rIndex)
-        {
-            sortingData [lIndex] = sortingData [rIndex];
-        }
-
-        while (cmpFunc (&(sortingData [lIndex]), &pivotIndex) < 0 && lIndex < rIndex)
+        while (lIndex < rIndex && cmpFunc ((void*) ((char*) srtData + lIndex * sizeofElement), (void*) ((char*) srtData + pivotIndex * sizeofElement)) < 0)
         {
             lIndex++;
         }
 
-        if (lIndex < rIndex)
+        while (lIndex < rIndex && cmpFunc ((void*) ((char*) srtData + rIndex * sizeofElement), (void*) ((char*) srtData + pivotIndex * sizeofElement)) > 0)
         {
-            sortingData [rIndex] = sortingData [lIndex];
             rIndex--;
         }
 
+        if (lIndex >= rIndex)
+        {
+             break;   
+        }
 
-        assert (lIndex <= rIndex);
-        assert (lIndex >= leftBorder);
-        assert (rIndex <= rightBorder);
+        if (pivotIndex == lIndex)
+        {
+            pivotIndex = rIndex;
+        }
+
+        else if (pivotIndex == rIndex)
+        {
+            pivotIndex = lIndex;
+        }
+
+        ByteSwap ((void*) ((char*) srtData + lIndex * sizeofElement), (void*) ((char*) srtData + rIndex * sizeofElement), sizeofElement);
+
+        lIndex++;
+        rIndex--;
     }
 
-    assert (lIndex == rIndex);
+    return rIndex;
+}
 
-    sortingData [lIndex] = (char*) pivotIndex;
-    
-    if (lIndex != leftBorder)
-    {
-        QSortStr (sortingData, leftBorder, lIndex - 1, cmpFunc);
-    }
 
-    if (rIndex != rightBorder)
+void ByteSwap (void* first, void* second, size_t nOfBytes)
+{
+    for (size_t i = 0; i < nOfBytes; i++) 
     {
-        QSortStr (sortingData, rIndex + 1, rightBorder, cmpFunc);
+        char tempchar = ((char*) first) [i];
+        ((char*) first) [i] = ((char*) second) [i];
+        ((char*) second) [i] = tempchar;
     }
 }
 
@@ -209,16 +270,21 @@ int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
     assert (cmpStrIndex != nullptr);
     assert (pivotIndex  != nullptr);
 
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-qual"
+
     const char* cmpStrCasted = *((const char**) cmpStrIndex);
     const char* pivotCasted  = *((const char**) pivotIndex);
+
+    #pragma GCC diagnostic pop
 
     size_t cmpCount = 0;
     size_t pivotCount = 0;
 
-    while (cmpStrCasted [cmpCount] != '\n' && pivotCasted [pivotCount] != '\n')
+    while (cmpStrCasted [cmpCount] != '\0' && pivotCasted [pivotCount] != '\0')
     {
         
-        while (!isalpha (cmpStrCasted [cmpCount]) && cmpStrCasted [cmpCount] != '\n')
+        while (!isalpha (cmpStrCasted [cmpCount]) && cmpStrCasted [cmpCount] != '\0')
         {
             cmpCount++;
         }
@@ -228,7 +294,7 @@ int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
             pivotCount++;
         }
 
-        if (cmpStrCasted [cmpCount] == '\n' || pivotCasted [pivotCount] == '\0')
+        if (cmpStrCasted [cmpCount] == '\0' || pivotCasted [pivotCount] == '\0')
         {
             break;
         }
@@ -241,8 +307,20 @@ int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
         cmpCount++;
         pivotCount++;
     }
-
     return cmpStrCasted [cmpCount] - pivotCasted [pivotCount];
+}
+
+size_t strlenToN (const char* str)
+{
+    assert (str != nullptr);
+
+    const char* startAddress = str;
+
+    while (*(str++) != '\n')
+    {
+    }
+
+    return (size_t)(str - startAddress - 1);
 }
 
 
@@ -251,8 +329,13 @@ int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
     assert (cmpStrIndex != nullptr);
     assert (pivotIndex  != nullptr);
 
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-qual"
+
     const char* cmpStrCasted = *((const char**) cmpStrIndex);
     const char* pivotCasted  = *((const char**) pivotIndex);
+
+    #pragma GCC diagnostic pop
 
     int cmpCount   = strlen (cmpStrCasted);
     int pivotCount = strlen (pivotCasted);
@@ -288,83 +371,11 @@ int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
 }
 
 
-/*
-char* strdupreverse (char *src)
-{
-    assert (src != nullptr);
-
-    size_t inputStrSize = strlen(src) + 1;
-
-    char* srcDup = (char*) calloc (inputStrSize, sizeof (char));
-
-    size_t count = 0;
-    inputStrSize -= 2;
-
-    while (*(src + inputStrSize) != 0)
-    {
-        *(srcDup + count) = *(src + inputStrSize);
-        inputStrSize--;
-        count++;
-    }
-
-    *(srcDup + count) = 0;
-
-    assert (srcDup != nullptr);
-
-    return srcDup;
-}*/
-
-
-/*
-void PrintData (char** data, size_t lIndex, size_t rIndex, char* pivotValue, PrintDataReason reason)
-{
-    printf ("Now data is: \n" GREEN);
-
-    for (size_t i = 0; i < len; i++)
-    {
-        if (i == lIndex + 1)
-        {
-            printf (RESET);
-        }
-
-        if (i == rIndex)
-        {
-            printf (RED);
-        }
-
-        printf ("%s ", data [i]);
-    }
-
-    printf (RESET "\nleft = %zu, right = %zu\n", lIndex, rIndex);
-
-    switch (reason)
-    {
-        case GoLeft:
-            printf ("Right pointer moved left\n");
-            break;
-
-        case GoRight:
-            printf ("Left pointer moved right\n");
-            break;
-
-        case RewriteLeft:
-            printf ("Value from left side was rewrite to the right side\n");
-            break;
-
-        case RewriteRight:
-            printf ("Value from right side was rewrite to the left side\n");
-            break;
-
-        default:
-            break;
-    }
-
-    getchar ();
-}
-*/
-
 void PrintStrings (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile)
 {
+    assert (index != nullptr);
+    assert (sortedFile != nullptr);
+
     switch (reason)
     {
         case DebugingPrint:
@@ -375,13 +386,12 @@ void PrintStrings (char** index, size_t nOfStr, PrintStrReason reason, FILE* sor
             break;
         
         case PrintAns:
-
             for (size_t i = 0; i < nOfStr; i++)
             {
                 fprintf (sortedFile, "%s\n", index [i]);
             }
-            
-            fprintf (sortedFile, "************************************\n\n");
+
+            fprintf (sortedFile, "************************************\n\n\n\n\n\n\n\n\n");
             break;
         
         default:
