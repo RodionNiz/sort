@@ -27,15 +27,15 @@ struct TextStates
 
 TextStates ParseText    (FILE* readingFile, char* fileName);
 char*   ReadFile        (size_t* fileSize, FILE* file, char* fileName);
-size_t  FillIndex       (char*** originalTextIndexes, char* text, size_t textSize);
 size_t  CountStrings    (char* text, size_t textSize);
+size_t  FillIndex       (char*** originalTextIndexes, char* text, size_t textSize);
 
 void    QSort           (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc);
 size_t  Partition       (void* srtData, const size_t nOfElements, const size_t sizeofElement, CompareFuncType cmpFunc);
 void    ByteSwap        (void* first, void* second, size_t nOfBytes);
 
-int     CompareStr      (const void* cmpStrIndex, const void* pivotIndex);
-int     CompareStandard (const void* cmpStrIndex, const void* pivotIndex);
+int     CompareDirect   (const void* cmpStrIndex, const void* pivotIndex);
+int     CompareReverse  (const void* cmpStrIndex, const void* pivotIndex);
 
 void    PrintStrings    (char** index, size_t nOfStr, PrintStrReason reason, FILE* sortedFile);
 
@@ -44,20 +44,33 @@ void    ClearMem        (char* text, char** stringsPtrs);
 
 int main (int argc, char* argv [])
 {
-    assert (argc == 2);
+    if (argc < 2)
+    {
+        char fileName [11] = "Onegin.txt";
+        argv [1] = fileName;
+    }
+
+    if (argc > 2)
+    {
+        printf ("Unsupported number of arguments");
+        abort ();
+    }
 
     printf ("\'%s\'", argv [1]);
 
     FILE* file = fopen (argv [1], "r");
     FILE* sortedFile = fopen ("SortedText.txt", "w");
 
+    assert (file != nullptr);
+    assert (sortedFile != nullptr);
+
     TextStates states = ParseText (file, argv[1]);
     
-    QSort (states.textPtrs, states.nOfGoodStr, sizeof (states.textPtrs [0]) , &CompareStr);
+    QSort (states.textPtrs, states.nOfGoodStr, sizeof (states.textPtrs [0]) , &CompareDirect);
 
     PrintStrings (states.textPtrs, states.nOfGoodStr, PrintAns, sortedFile);
 
-    qsort (states.textPtrs, states.nOfGoodStr, sizeof (states.textPtrs [0]), &CompareStandard);
+    qsort (states.textPtrs, states.nOfGoodStr, sizeof (states.textPtrs [0]), &CompareReverse);
     
     PrintStrings (states.textPtrs, states.nOfGoodStr, PrintAns, sortedFile);
 
@@ -73,6 +86,7 @@ int main (int argc, char* argv [])
 TextStates ParseText (FILE* readingFile, char* fileName)
 {
     assert (readingFile != nullptr);
+    assert (fileName != nullptr);
 
     TextStates states = {};
 
@@ -94,6 +108,7 @@ char* ReadFile (size_t* fileSize, FILE* file, char* fileName)
 {
     assert (file != nullptr);
     assert (fileSize != nullptr);
+    assert (fileName != nullptr);
     
     struct stat fileStat = {};
 
@@ -277,7 +292,7 @@ void ByteSwap (void* first, void* second, size_t nOfBytes)
 }
 
 
-int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
+int CompareDirect (const void* cmpStrIndex, const void* pivotIndex)
 {
     assert (cmpStrIndex != nullptr);
     assert (pivotIndex  != nullptr);
@@ -318,7 +333,7 @@ int CompareStr (const void* cmpStrIndex, const void* pivotIndex)
 }
 
 
-int CompareStandard (const void* cmpStrIndex, const void* pivotIndex)
+int CompareReverse (const void* cmpStrIndex, const void* pivotIndex)
 {
     assert (cmpStrIndex != nullptr);
     assert (pivotIndex  != nullptr);
