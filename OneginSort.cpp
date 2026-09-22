@@ -56,8 +56,6 @@ int main (int argc, char* argv [])
         abort ();
     }
 
-    printf ("\'%s\'", argv [1]);
-
     FILE* file = fopen (argv [1], "r");
     FILE* sortedFile = fopen ("SortedText.txt", "w");
 
@@ -83,7 +81,7 @@ int main (int argc, char* argv [])
 }
 
 
-TextStates ParseText (FILE* readingFile, char* fileName)
+TextStates ParseText (FILE* readingFile, char* const fileName)
 {
     assert (readingFile != nullptr);
     assert (fileName != nullptr);
@@ -104,7 +102,7 @@ TextStates ParseText (FILE* readingFile, char* fileName)
 }
 
 
-char* ReadFile (size_t* fileSize, FILE* file, char* fileName)
+char* ReadFile (size_t* fileSize, FILE* file, char* const fileName)
 {
     assert (file != nullptr);
     assert (fileSize != nullptr);
