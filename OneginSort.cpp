@@ -41,7 +41,8 @@ struct TextStates
 
 
 TextStates ParseText    (FILE* readingFile, char* fileName);
-char*   ReadFile        (size_t* fileSize, FILE* file, char* fileName);
+size_t  CountFileSize   (char* const fileName);
+char*   ReadFile        (size_t* fileSize, FILE* file);
 size_t  CountStrings    (char* text, size_t textSize);
 size_t  FillIndex       (String* originalTextStrings, char* text, size_t textSize);
 
@@ -121,7 +122,9 @@ TextStates ParseText (FILE* readingFile, char* const fileName)
 
     TextStates states = {};
 
-    states.text = ReadFile (&(states.textLen), readingFile, fileName);
+    states.textLen = CountFileSize (fileName);
+
+    states.text = ReadFile (&(states.textLen), readingFile);
     
     states.nOfStr = CountStrings (states.text, states.textLen);
 
@@ -135,21 +138,27 @@ TextStates ParseText (FILE* readingFile, char* const fileName)
 }
 
 
-char* ReadFile (size_t* fileSize, FILE* file, char* const fileName)
+size_t CountFileSize (char* const fileName)
 {
-    assert (file != nullptr);
-    assert (fileSize != nullptr);
     assert (fileName != nullptr);
-    
+
     struct stat fileStat = {};
 
     assert (stat (fileName, &fileStat) != -1);
 
-    size_t approxFileSize = fileStat.st_size;
+    return  fileStat.st_size;
+}
 
-    char* text = (char*) calloc (approxFileSize + 1, sizeof (text [0]));
 
-    *fileSize = fread (text, sizeof (text [0]), approxFileSize, file);
+//TODO отдельная функция подсчета размера файла
+char* ReadFile (size_t* fileSize, FILE* file)
+{
+    assert (file != nullptr);
+    assert (fileSize != nullptr);
+
+    char* text = (char*) calloc (*fileSize + 1, sizeof (text [0]));
+
+    *fileSize = fread (text, sizeof (text [0]), *fileSize, file);
 
     text = (char*) realloc (text, *fileSize * sizeof (text [0]) + 1);
 
