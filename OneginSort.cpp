@@ -1,4 +1,3 @@
-#include <cstddef>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -76,29 +75,32 @@ int main (int argc, char* argv [])
 
     if (argc > 3)
     {
-        printf ("Unsupported number of arguments");
-        return NofArgErr;
+        printf ("Error: %s",strerror (E2BIG));
+        return E2BIG;
     }
 
     //TODO коды ошибок
+    //TODO strerror errno
     FILE* file = fopen (argv [1], "r");
     FILE* sortedFile = fopen (argv [2], "w");
 
     if (file == nullptr)
     {
-        return FileNameErr;
+        printf ("Error: %s", strerror (ENOENT));
+        return ENOENT;
     }
 
     if (sortedFile == nullptr)
     {
-        return FileNameErr;
+        printf ("Error: %s", strerror (ENOSPC));
+        return ENOSPC;
     }
 
     TextStates states = ParseText (file, argv[1]);
 
     QSort (states.strings, states.nOfGoodStr, sizeof (states.strings [0]) , &CompareDirect);
 
-    PrintStrings (states.strings, states.nOfGoodStr, PrintAns, sortedFile);
+    PrintStrings (states.strings, states.nOfGoodStr, DebugingPrint, sortedFile);
 
     qsort (states.strings, states.nOfGoodStr, sizeof (states.strings [0]), &CompareReverse);
 
